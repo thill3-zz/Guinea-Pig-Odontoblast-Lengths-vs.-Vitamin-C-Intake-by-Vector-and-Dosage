@@ -1,0 +1,458 @@
+---
+title: "Guinea Pig Odontoblast Lengths vs. Vitamin C Intake by Vector and Dosage"
+author: "Thomas Hill III"
+date: "April 5, 2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(scipen = 999)
+```
+#Overview
+In 1952 C. I. Bliss wrote a paper "The Statistics of Biosassay" in which he analyzed the length of odonotoblasts (part of tooth formation) in a population of 60 guinea pigs by giving three different doses of vitamin C by two different vectors to subgroups of the 60 over 42 days. Utimately the goal was to determine the best method of delivering vitamin C to soldiers who did not have much access to natural sources of the vitamin.
+
+#Overall Data Summary
+
+```{r Summary1, results = "hide", include = FALSE}
+#First load the data to a variable we can use.
+tg <- ToothGrowth
+```
+```{r How much data?, include = FALSE}
+#How much data do we have?
+dim(tg)
+```
+After loading the dataset we find that it is `r dim(tg)[1]` rows (guinea pigs) by `r dim(tg)[2]` columns.
+```{r Names1, include = FALSE}
+names(tg)
+```
+The `r dim(tg)[2]` columns include the length of the odontoblasts, the supplement (vector) by which the vitamin C was administered, and the dosage of vitamin C that the guinea pig received.
+
+In the data it is the case that the dosage is considered a numerical value rather than a discrete factor (level). Hence it is useful to change the value in the "dose" column to be a factor rather than a number.
+```{r Numeric to Factor, include = FALSE}
+tg1 <- tg
+tg1$dose <- sapply(tg1$dose, as.factor)
+```
+Now we can perform a brief summary of the data.
+```{r Data Summary, echo = FALSE}
+summary(tg1)
+```
+We see two vectors (OJ=orange juice and VC=synthetic vitamin C) and three dosage levels measured in milligrams per day (.5, 1, 2). The odontoblast lengths are measured in microns (millionths of a meter) and range from 4.2 to 33.9. The table shows how many guinea pigs received each combination of vector and dosage. [Note that running the R command str(tg1) gives no extra useful data.]
+
+```{r data Summary 2, include = FALSE}
+str(tg1)
+```
+
+There are 10 guinea pigs for each combination ($2 \cdotp 3 \cdotp 10 = 60$).
+Here's a basic histogram of the length data with the normal cureve in red.
+```{r library ggplot2, message = FALSE, results = "hide", warning = FALSE, include = FALSE}
+library(ggplot2)
+```
+```{r Length Histogram, message = FALSE, warning = FALSE, fig.width = 6, fig.height = 1.5, echo = FALSE}
+x1 <- tg1$len
+mean1 <- mean(tg1$len)
+sd1 <- sd(tg1$len)
+n1 <- length(tg1$len)
+bw1 <- 2
+ggplot(data.frame(tg1), aes(x = len)) +
+        geom_histogram(aes(y = ..density..), fill = "yellow", col = "black") +
+        stat_function(fun  = dnorm,
+        args = c(mean = mean1, sd = sd1), col = "red") +
+        ggtitle("Odontoblast Lengths") +
+        xlab("Length (in microns)") + ylab("Density")
+```
+
+That's an argument in favor of a t-test (which is robust to departures from normality).
+
+Perhaps we could learn something by grouping the data by Supp and Dose.
+
+Here are box plots for the length grouped by supp and dose.
+
+```{r boxplot dose, fig.width = 3.5, fig.height = 2.5, echo = FALSE}
+ggplot(data.frame(tg1), aes(x=dose, y=len, fill = dose)) + geom_boxplot() +
+        ggtitle("Plot of Tooth Length by Dose") +
+        xlab("Dose") +
+        ylab("Length")
+```
+```{r boxplot supp, fig.width = 3.5, fig.height = 2.5, echo = FALSE}
+ggplot(data.frame(tg1), aes(x=supp, y=len, fill = supp)) + geom_boxplot() +
+        ggtitle("Plot of Tooth Length by Supp") +
+        xlab("Supp") +
+        ylab("Length")
+```
+
+OK. that looks like length will increase as dosage increases and be higher for orange juice delivery than for synthetic vitamin C delivery.
+
+```{r Data Break Up, fig.width = 6, fig.height = 2, echo = FALSE}
+ggplot(data.frame(tg1), aes(x = len)) +
+        geom_histogram(binwidth = 2, color = "black", fill = "grey") +
+        facet_grid(supp~dose) +
+        ggtitle("Histogram of Length by Dose and Supp") +
+        xlab("Length") +
+        ylab("Count")
+```
+
+The plots aren't entirely clear on the relationship between the doses or between the supplement vectors. An interaction plot would be useful here.
+
+#Data Preparation - Subsets
+The data must be subsetted for analysis. We find means after grouping, first by supp, then by does, then by combinations of supp and dose. The code is in the appendix.
+```{r, message = FALSE, warning = FALSE, results = "hide", include = FALSE}
+library(dplyr)
+```
+```{r Subsets supp, include = FALSE}
+#By supp.
+tgOJ <- tg1 %>%
+        filter(supp == "OJ") %>%
+        select(len)
+tgVC <- tg1 %>%
+        filter(supp == "VC") %>%
+        select(len)
+```
+```{r subsets dose, include = FALSE}
+#By dose.
+tg.5 <- tg1 %>%
+        filter(dose == "0.5") %>%
+        select(len)
+tg01 <- tg1 %>%
+        filter(dose == "1") %>%
+        select(len)
+tg02 <- tg1 %>%
+        filter(dose == "2") %>%
+        select(len)
+```
+```{r subsets supp&dose, include = FALSE}
+#By supp and dose.
+tgOJ.5 <- tg1 %>%
+        filter(supp == "OJ", dose == "0.5") %>%
+        select(len)
+tgOJ01 <- tg1 %>%
+        filter(supp == "OJ", dose == "1") %>%
+        select(len)
+tgOJ02 <- tg1 %>%
+        filter(supp == "OJ", dose == "2") %>%
+        select(len)
+tgVC.5 <- tg1 %>%
+        filter(supp == "VC", dose == "0.5") %>%
+        select(len)
+tgVC01 <- tg1 %>%
+        filter(supp == "VC", dose == "1") %>%
+        select(len)
+tgVC02 <- tg1 %>%
+        filter(supp == "VC", dose == "2") %>%
+        select(len)
+```
+
+Because the subsets of data are taken from the same population we assume equal variance for all subsets. None are paired because we are dealing with 60 independent guinea pigs. We will use a confidence interval of 95% and an alpha of 5%. The null hypothesis is that the means of the groups are equal. For any p value $> .05$ we cannot reject the null hypothesis that the means are equivalent. For smaller p values we reject the null hypothesis in favor of the alternative hypothesis that the means of the groups are different.
+
+#Analysis
+Let's compare the means of the various groups. In all cases the mean difference is taken to be the second list minus the first list, so a negative difference means the first list is lower than the second.
+
+```{r, include = FALSE}
+####In four cases we compare groups against those of their type (OJ/VC, .5/1/2) without differentiating with respect to the other type. In six cases we compare across dose while fixing supp, and in three cases we compare acress supp while keeping dose fixed
+```
+
+```{r OJ vs VC, results = "hide", include = FALSE}
+OJvVC <- t.test(tgOJ, tgVC, var.equal = TRUE)
+```
+```{r .5v01, results = "hide", include = FALSE}
+halfv01 <- t.test(tg.5, tg01, var.equal = TRUE)
+```
+```{r .5v02, results = "hide", include = FALSE}
+halfv02 <- t.test(tg.5, tg02, var.equal = TRUE)
+```
+```{r O1v02, results = "hide", include = FALSE}
+O1v02 <- t.test(tg01, tg02, var.equal = TRUE)
+```
+```{r OJ.5vOJ01, results = "hide", include = FALSE}
+OJ.5vOJ01 <- t.test(tgOJ.5, tgOJ01, var.equal = TRUE)
+```
+```{r OJ.5vOJ02, results = "hide", include = FALSE}
+OJ.5vOJ02 <- t.test(tgOJ.5, tgOJ02, var.equal = TRUE)
+```
+```{r OJ01vOJ02, results = "hide", include = FALSE}
+OJ01vOJ02 <- t.test(tgOJ01, tgOJ02, var.equal = TRUE)
+```
+```{r VC.5vVC01, results = "hide", include = FALSE}
+VC.5vVC01 <- t.test(tgVC.5, tgVC01, var.equal = TRUE)
+```
+```{r VC.5vVC02, results = "hide", include = FALSE}
+VC.5vVC02 <- t.test(tgVC.5, tgVC02, var.equal = TRUE)
+```
+```{r VC01vVC02, results = "hide", include = FALSE}
+VC01vVC02 <- t.test(tgVC01, tgVC02, var.equal = TRUE)
+```
+```{r OJ.5vVC.5, results = "hide", include = FALSE}
+OJ.5vVC.5 <- t.test(tgOJ.5, tgVC.5, var.equal = TRUE)
+```
+```{r OJ01vVC01, results = "hide", include = FALSE}
+OJ01vVC01 <- t.test(tgOJ01, tgVC01, var.equal = TRUE)
+```
+```{r OJ02vVC02, results = "hide", include = FALSE}
+OJ02vVC02 <- t.test(tgOJ02, tgVC02, var.equal = TRUE)
+```
+```{r knitr, include = FALSE, message = FALSE, warning = FALSE}
+library(knitr)
+library(kableExtra)
+```
+
+```{r Kable of results, echo = FALSE}
+x <-
+        t(matrix(
+        data = c(
+        OJvVC$conf.int,
+        OJvVC$p.value,
+        halfv01$conf.int,
+        halfv01$p.value,
+        halfv02$conf.int,
+        halfv02$p.value,
+        O1v02$conf.int,
+        O1v02$p.value,
+        OJ.5vOJ01$conf.int,
+        OJ.5vOJ01$p.value,
+        OJ.5vOJ02$conf.int,
+        OJ.5vOJ02$p.value,
+        OJ01vOJ02$conf.int,
+        OJ01vOJ02$p.value,
+        VC.5vVC01$conf.int,
+        VC.5vVC01$p.value,
+        VC.5vVC02$conf.int,
+        VC.5vVC02$p.value,
+        VC01vVC02$conf.int,
+        VC01vVC02$p.value,
+        OJ.5vVC.5$conf.int,
+        OJ.5vVC.5$p.value,
+        OJ01vVC01$conf.int,
+        OJ01vVC01$p.value,
+        OJ02vVC02$conf.int,
+        OJ02vVC02$p.value
+        ),
+        nrow = 3
+        ))
+        rownames(x) <- c(
+        "OJ vs VC",
+        ".5 vs 1",
+        ".5 vs 2",
+        "1 vs 2",
+        "OJ: .5 vs 1",
+        "OJ: .5 vs 2",
+        "OJ: 1 vs 2",
+        "VC: .5 vs 1",
+        "VC: .5 vs 2",
+        "VC: 1 vs 2",
+        ".5: OJ vs VC",
+        "1: OJ vs VC",
+        "2: OJ vs VC"
+        )
+        
+        kable(
+                x,
+                digits = 8,
+                row.names = TRUE,
+                col.names = c("Lower Bound", "Upper Bound", "P value"),
+                align = "l",
+                caption = "Confidence Intervals and P values",
+                label = NULL,
+                escape = TRUE
+                ) %>%
+        kable_styling("striped", latex_options = "hold_position") %>%
+        add_header_above(c(
+                " " = 1,
+                "Confidence Interval" = 2,
+                " " = 1
+                )) %>%
+        pack_rows("Overall Dose & Supp", 1, 4) %>%
+        pack_rows("Same Supp, Different Dose", 5, 10) %>%
+        pack_rows("Same Dose, Different Supp", 11, 13)
+```
+
+We see that in most cases the interval is negative and the p value is low. This means that we reject the null hypothesis of no diffference in means in favor of the alternative hypothesis of a negative relationship (the mean of the second is larger than the mean of the first). There are two exceptions - 
+
+1. Orange Juice vs. Synthetic Vitamin C (over all dosages) wherein the relationship is only statistically significant at a confidence level of 6.04% or higher.
+2. Dosage 2: Orange Juics vs. Vitamin C wherein the vector did not make a statistically significant difference between the means of the lengths almost at all (p value near 1).
+
+#Conclusion
+While the data are not normally distributed the t test is still valid and applicable.
+
+* Orange Juice and Synthetic Vitamin C do not have significantly different effects on odontoblast lengths.
+* All of the dosages have significant differences from one another. Each lower dose has a significantly smaller effect on odontoblast length than each larger dose.
+* Comparing the individual supp/dose subsets against each other shows the same relationships that we saw earlier with the exception that at a dosage of 2 the average lengths in the two groups are not statistically significantly different.
+
+\pagebreak
+
+#Appendix
+Bring in the data.
+```{r Summary1 v2, results = "hide"}
+tg <- ToothGrowth
+```
+Set Dose to a factor
+```{r Numeric to Factor v2}
+tg1 <- tg
+tg1$dose <- sapply(tg1$dose, as.factor)
+```
+How much data do we have?
+```{r How much data? v2}
+dim(tg)
+```
+```{r Names1 v2}
+names(tg)
+```
+Code for subsetting.
+```{r library dplyr v2, message = FALSE, warning = FALSE, results = "hide"}
+library(dplyr)
+```
+By supp.
+```{r Subsets suppv2}
+tgOJ <- tg1 %>%
+        filter(supp == "OJ") %>%
+        select(len)
+tgVC <- tg1 %>%
+        filter(supp == "VC") %>%
+        select(len)
+```
+By dose.
+```{r subsets dosev2}
+tg.5 <- tg1 %>%
+        filter(dose == "0.5") %>%
+        select(len)
+tg01 <- tg1 %>%
+        filter(dose == "1") %>%
+        select(len)
+tg02 <- tg1 %>%
+        filter(dose == "2") %>%
+        select(len)
+```
+By supp and dose.
+```{r subsets supp&dosev2}
+tgOJ.5 <- tg1 %>%
+        filter(supp == "OJ", dose == "0.5") %>%
+        select(len)
+tgOJ01 <- tg1 %>%
+        filter(supp == "OJ", dose == "1") %>%
+        select(len)
+tgOJ02 <- tg1 %>%
+        filter(supp == "OJ", dose == "2") %>%
+        select(len)
+tgVC.5 <- tg1 %>%
+        filter(supp == "VC", dose == "0.5") %>%
+        select(len)
+tgVC01 <- tg1 %>%
+        filter(supp == "VC", dose == "1") %>%
+        select(len)
+tgVC02 <- tg1 %>%
+        filter(supp == "VC", dose == "2") %>%
+        select(len)
+```
+t.test code.
+```{r OJ vs VCv2, results = "hide"}
+OJvVC <- t.test(tgOJ, tgVC, var.equal = TRUE)
+```
+```{r .5v01v2, results = "hide"}
+halfv01 <- t.test(tg.5, tg01, var.equal = TRUE)
+```
+```{r .5v02v2, results = "hide"}
+halfv02 <- t.test(tg.5, tg02, var.equal = TRUE)
+```
+```{r O1v02v2, results = "hide"}
+O1v02 <- t.test(tg01, tg02, var.equal = TRUE)
+```
+```{r OJ.5vOJ01v2, results = "hide"}
+OJ.5vOJ01 <- t.test(tgOJ.5, tgOJ01, var.equal = TRUE)
+```
+```{r OJ.5vOJ02v2, results = "hide"}
+OJ.5vOJ02 <- t.test(tgOJ.5, tgOJ02, var.equal = TRUE)
+```
+```{r OJ01vOJ02v2, results = "hide"}
+OJ01vOJ02 <- t.test(tgOJ01, tgOJ02, var.equal = TRUE)
+```
+```{r VC.5vVC01v2, results = "hide"}
+VC.5vVC01 <- t.test(tgVC.5, tgVC01, var.equal = TRUE)
+```
+```{r VC.5vVC02v2, results = "hide"}
+VC.5vVC02 <- t.test(tgVC.5, tgVC02, var.equal = TRUE)
+```
+```{r VC01vVC02v2, results = "hide"}
+VC01vVC02 <- t.test(tgVC01, tgVC02, var.equal = TRUE)
+```
+```{r OJ.5vVC.5v2, results = "hide"}
+OJ.5vVC.5 <- t.test(tgOJ.5, tgVC.5, var.equal = TRUE)
+```
+```{r OJ01vVC01v2, results = "hide"}
+OJ01vVC01 <- t.test(tgOJ01, tgVC01, var.equal = TRUE)
+```
+```{r OJ02vVC02v2, results = "hide"}
+OJ02vVC02 <- t.test(tgOJ02, tgVC02, var.equal = TRUE)
+```
+Libraries for the table of results
+```{r knitr v2, results = "hide", message = FALSE, warning = FALSE}
+library(knitr)
+library(kableExtra)
+```
+Generating the table of results.
+```{r Kable of results v2, results = "hide"}
+x <-
+        t(matrix(
+        data = c(
+        OJvVC$conf.int,
+        OJvVC$p.value,
+        halfv01$conf.int,
+        halfv01$p.value,
+        halfv02$conf.int,
+        halfv02$p.value,
+        O1v02$conf.int,
+        O1v02$p.value,
+        OJ.5vOJ01$conf.int,
+        OJ.5vOJ01$p.value,
+        OJ.5vOJ02$conf.int,
+        OJ.5vOJ02$p.value,
+        OJ01vOJ02$conf.int,
+        OJ01vOJ02$p.value,
+        VC.5vVC01$conf.int,
+        VC.5vVC01$p.value,
+        VC.5vVC02$conf.int,
+        VC.5vVC02$p.value,
+        VC01vVC02$conf.int,
+        VC01vVC02$p.value,
+        OJ.5vVC.5$conf.int,
+        OJ.5vVC.5$p.value,
+        OJ01vVC01$conf.int,
+        OJ01vVC01$p.value,
+        OJ02vVC02$conf.int,
+        OJ02vVC02$p.value
+        ),
+        nrow = 3
+        ))
+        rownames(x) <- c(
+        "OJ vs VC",
+        ".5 vs 1",
+        ".5 vs 2",
+        "1 vs 2",
+        "OJ: .5 vs 1",
+        "OJ: .5 vs 2",
+        "OJ: 1 vs 2",
+        "VC: .5 vs 1",
+        "VC: .5 vs 2",
+        "VC: 1 vs 2",
+        ".5: OJ vs VC",
+        "1: OJ vs VC",
+        "2: OJ vs VC"
+        )
+        
+        kable(
+               x,
+                digits = 4,
+                row.names = TRUE,
+                col.names = c("Lower Bound", "Upper Bound", "P value"),
+                align = "l",
+                caption = "Confidence Intervals and P values",
+                label = NULL,
+                escape = TRUE
+                ) %>%
+        kable_styling("striped") %>%
+        add_header_above(c(
+                " " = 1,
+                "Confidence Interval" = 2,
+                " " = 1
+        ))
+```
